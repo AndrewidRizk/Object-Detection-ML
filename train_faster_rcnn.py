@@ -1,5 +1,6 @@
 if __name__ == "__main__":
     import os
+    import time
     import torch
     import torchvision
     from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
@@ -16,7 +17,7 @@ if __name__ == "__main__":
     # Load COCO dataset annotations
     coco = COCO(annotations_file)
 
- # Dataset transformation
+     # Dataset transformation
     transform = T.Compose([
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -42,13 +43,21 @@ if __name__ == "__main__":
     # Define the number of epochs for training
     num_epochs = 10
 
-    # Training loop with checkpoint saving and progress indicator
+    # Start tracking the time for training
+    start_time = time.time()
+
+    # Training loop with checkpoint saving, progress indicator, and estimated time
     for epoch in range(num_epochs):
         model.train()  # Set model to training mode
         epoch_loss = 0  # Track the cumulative loss over each epoch
         total_batches = len(data_loader)
 
+        epoch_start_time = time.time()
+
         for batch_idx, (images, targets) in enumerate(data_loader):
+            # Start timing the batch
+            batch_start_time = time.time()
+
             # Move images and targets to the same device as the model
             images = list(image.to(device) for image in images)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -65,12 +74,25 @@ if __name__ == "__main__":
             # Accumulate loss for tracking
             epoch_loss += losses.item()
 
-            # Print progress percentage
+            # Calculate progress percentage
             progress = (batch_idx + 1) / total_batches * 100
-            print(f"Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx+1}/{total_batches}], Progress: {progress:.2f}%, Loss: {losses.item():.4f}")
+
+            # Calculate elapsed and remaining time
+            batch_end_time = time.time()
+            batch_time = batch_end_time - batch_start_time
+            batches_left = total_batches - (batch_idx + 1)
+            estimated_time_remaining = batches_left * batch_time / 60  # in minutes
+
+            # Print progress percentage and estimated time remaining
+            print(f"Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx+1}/{total_batches}], "
+                  f"Progress: {progress:.2f}%, Loss: {losses.item():.4f}, "
+                  f"Estimated Time Remaining for Epoch: {estimated_time_remaining:.2f} min")
 
         # Print total loss for the epoch
-        print(f"Epoch [{epoch+1}/{num_epochs}], Total Loss: {epoch_loss:.4f}")
+        epoch_end_time = time.time()
+        epoch_duration = (epoch_end_time - epoch_start_time) / 60  # in minutes
+        print(f"Epoch [{epoch+1}/{num_epochs}], Total Loss: {epoch_loss:.4f}, "
+              f"Epoch Duration: {epoch_duration:.2f} min")
 
         # Save a checkpoint after every epoch
         checkpoint_path = f"checkpoint_epoch_{epoch+1}.pth"
@@ -81,3 +103,8 @@ if __name__ == "__main__":
             'loss': epoch_loss,
         }, checkpoint_path)
         print(f"Checkpoint saved: {checkpoint_path}")
+
+    # Print total training time
+    end_time = time.time()
+    total_training_time = (end_time - start_time) / 60  # in minutes
+    print(f"Training completed in {total_training_time:.2f} minutes.")
