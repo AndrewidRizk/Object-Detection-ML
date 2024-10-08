@@ -55,7 +55,7 @@ Consedering potato computers 🥔. The script automatically saves checkpoints af
  ```
 The script will resume from the latest checkpoint.
 
-🙏 Acknowledgements
+## 🙏 Acknowledgements
 - COCO Dataset: https://cocodataset.org/#home
 - PyTorch: https://pytorch.org/
 - Torchvision: https://pytorch.org/vision/stable/index.html
