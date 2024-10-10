@@ -14,6 +14,7 @@ import torchvision.transforms as T
 from werkzeug.utils import secure_filename
 import glob
 import time
+import requests
 
 # Flask App Setup
 app = Flask(__name__)
@@ -41,9 +42,26 @@ COCO_INSTANCE_CATEGORY_NAMES = [
 
 # Load the trained model
 model_path = 'saved_model/faster_rcnn_coco_trained.pth'
+cloud_model_url = 'https://drive.google.com/file/d/1VKHNgbU8VduTUKXLeSGZC-r0t-dBiYdU'  # Replace with your Google Drive direct download link
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+# Function to download the model if not present locally
+def download_model(model_path, url):
+    if not os.path.exists(model_path):
+        print(f"Model not found locally. Downloading from {url}...")
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(model_path, 'wb') as f:
+                f.write(response.content)
+            print("Model downloaded successfully!")
+        else:
+            raise Exception(f"Failed to download model. HTTP Status: {response.status_code}")
+
+
 def load_model(model_path, num_classes=91, device='cpu'):
+    # Download the model from cloud if not available locally
+    download_model(model_path, cloud_model_url)
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights=None)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
