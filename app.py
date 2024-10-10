@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session
+from flask_cors import CORS  # Import flask-cors for cross-origin support
 import os
 import torch
 import torchvision
@@ -16,6 +17,7 @@ import time
 
 # Flask App Setup
 app = Flask(__name__)
+CORS(app)  # Enable CORS for the Flask app
 app.secret_key = 'supersecretkey'  # Required for session management
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'static/uploads')  # Folder to save uploaded files
 SLIDESHOW_FOLDER = os.path.join(os.getcwd(), 'static/slideShow')
@@ -273,4 +275,4 @@ def upload_image_from_slideshow():
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
-    app.run(debug=True)
+    app.run(debug=False)
