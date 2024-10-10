@@ -9,7 +9,7 @@ model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCN
 
 # Load the saved model weights
 # Replace 'faster_rcnn_coco_trained.pth' with the path to your saved file
-saved_model_path = "faster_rcnn_coco_trained.pth"  # Adjust to your actual file path
+saved_model_path = "saved_model/faster_rcnn_coco_trained.pth"  # Adjust to your actual file path
 
 try:
     model.load_state_dict(torch.load(saved_model_path))

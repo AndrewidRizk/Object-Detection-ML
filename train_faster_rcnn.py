@@ -2,9 +2,10 @@ if __name__ == "__main__":
     import os
     import time
     import torch
+    import random
     import torchvision
     from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-    from torch.utils.data import DataLoader, Subset, random_split
+    from torch.utils.data import DataLoader
     from pycocotools.coco import COCO
     from coco_dataset_loader import COCODataset
     import torchvision.transforms as T
@@ -19,34 +20,19 @@ if __name__ == "__main__":
 
     # Dataset transformation
     transform = T.Compose([
-        T.Resize((300, 300)),  # Resize to 300x300 pixels to reduce computation
         T.ToTensor(),
         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     coco_dataset = COCODataset(coco, img_dir=train_images_dir, transform=transform)
 
-    # Use a subset of the dataset for training (20,000 images)
-    subset_indices = list(range(0, 20000))  # Use first 20,000 images for training
-    coco_subset = Subset(coco_dataset, subset_indices)
-
-    # Split data into training and validation sets (90% train, 10% validation)
-    train_size = int(0.9 * len(coco_subset))
-    val_size = len(coco_subset) - train_size
-    train_dataset, val_dataset = random_split(coco_subset, [train_size, val_size])
-
-    # DataLoaders for training and validation
-    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=0, collate_fn=lambda x: tuple(zip(*x)))
-    val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=0, collate_fn=lambda x: tuple(zip(*x)))
+    # DataLoader
+    data_loader = DataLoader(coco_dataset, batch_size=2, shuffle=True, num_workers=0, collate_fn=lambda x: tuple(zip(*x)))
 
     # Load and modify the pre-trained model
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(weights="DEFAULT")
-    num_classes = 91
+    num_classes = 91  # Number of classes in COCO
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-
-    # Freeze backbone layers to speed up training
-    for param in model.backbone.parameters():
-        param.requires_grad = False
 
     # Device setup
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -56,7 +42,7 @@ if __name__ == "__main__":
     optimizer = torch.optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
 
     # Define the number of epochs for training
-    num_epochs = 5
+    num_epochs = 10
 
     # Define checkpoint directory and create it if it doesn't exist
     checkpoint_dir = './checkpoints'
@@ -88,21 +74,30 @@ if __name__ == "__main__":
     # Start tracking the time for training
     start_time = time.time()
 
-    # Early stopping setup
-    patience = 2  # Stop if the loss doesn't improve for 2 consecutive epochs
-    min_loss = float('inf')
-    epochs_no_improve = 0
+    # ** Define the limit for the number of images to process **
+    max_images = 20000  # Manually set the limit to 20,000 images
+    images_processed = 0  # Counter to keep track of total images processed
+
+    # ** Calculate the total batches based on the subset size and batch size **
+    subset_batches = max_images // data_loader.batch_size  # Calculate batches for 20,000 images
+    print(f"Total Batches for this run: {subset_batches}")
 
     # Training loop with checkpoint saving, progress indicator, and estimated time
     for epoch in range(start_epoch, num_epochs):
         model.train()  # Set model to training mode
         epoch_loss = 0  # Track the cumulative loss over each epoch
-        total_batches = len(train_loader)
+        total_batches = subset_batches  # Use calculated subset batches instead of the full dataset
 
         epoch_start_time = time.time()
 
-        for batch_idx, (images, targets) in enumerate(train_loader):
+        for batch_idx, (images, targets) in enumerate(data_loader):
             try:
+                # Check if the limit of 20,000 images has been reached
+                images_processed += len(images)
+                if images_processed > max_images:
+                    print(f"Stopping early: {images_processed} images processed (Limit: {max_images})")
+                    break
+
                 # Start timing the batch
                 batch_start_time = time.time()
 
@@ -131,7 +126,7 @@ if __name__ == "__main__":
                 batches_left = total_batches - (batch_idx + 1)
                 estimated_time_remaining = batches_left * batch_time / 60  # in minutes
 
-                # Print progress percentage and estimated time remaining
+                # ** Update print statement to reflect the correct total_batches value **
                 print(f"Epoch [{epoch+1}/{num_epochs}], Batch [{batch_idx+1}/{total_batches}], "
                       f"Progress: {progress:.2f}%, Loss: {losses.item():.4f}, "
                       f"Estimated Time Remaining for Epoch: {estimated_time_remaining:.2f} min")
@@ -140,6 +135,11 @@ if __name__ == "__main__":
                 print(f"Error during batch processing: {e}")
                 continue  # If an error occurs in batch processing, skip to the next batch
 
+        # If the limit has been reached, exit the epoch loop
+        if images_processed > max_images:
+            print(f"Stopping training after processing {images_processed} images.")
+            break
+
         # Print total loss for the epoch
         epoch_end_time = time.time()
         epoch_duration = (epoch_end_time - epoch_start_time) / 60  # in minutes
@@ -147,27 +147,14 @@ if __name__ == "__main__":
               f"Epoch Duration: {epoch_duration:.2f} min")
 
         # Save a checkpoint after every epoch
-        try:
-            checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch+1}.pth")
-            torch.save({
-                'epoch': epoch + 1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': epoch_loss,
-            }, checkpoint_path)
-            print(f"Checkpoint saved: {checkpoint_path}")
-        except Exception as e:
-            print(f"Failed to save checkpoint: {e}")
-
-        # Early stopping check
-        if epoch_loss < min_loss:
-            min_loss = epoch_loss
-            epochs_no_improve = 0
-        else:
-            epochs_no_improve += 1
-            if epochs_no_improve == patience:
-                print("Early stopping triggered.")
-                break
+        checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch+1}.pth")
+        torch.save({
+            'epoch': epoch + 1,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': epoch_loss,
+        }, checkpoint_path)
+        print(f"Checkpoint saved: {checkpoint_path}")
 
     # Print total training time
     end_time = time.time()
@@ -176,8 +163,5 @@ if __name__ == "__main__":
 
     # Save the final trained model
     final_model_path = "faster_rcnn_coco_trained.pth"
-    try:
-        torch.save(model.state_dict(), final_model_path)
-        print(f"Final model saved: {final_model_path}")
-    except Exception as e:
-        print(f"Failed to save the final model: {e}")
+    torch.save(model.state_dict(), final_model_path)
+    print(f"Final model saved: {final_model_path}")

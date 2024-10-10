@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionMaster - Object Detection Results</title>
+    <style>
+        body {
+            background-color: #f7f8fc;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .header {
+            width: 100%;
+            background-color: #333;
+            color: #fff;
+            padding: 15px 0;
+            text-align: center;
+            position: fixed; /* Fixed position for top alignment */
+            top: 0;
+            left: 0;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            margin: 0;
+        }
+
+        .header .version {
+            font-size: 16px;
+            color: #dddddd;
+        }
+
+        /* Adjust main content to account for fixed header */
+        .main-content {
+            padding-top: 80px;  /* Add padding to avoid header overlap */
+            width: 90%;
+            max-width: 1400px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        .image-container {
+            flex: 1;
+            min-width: 400px;
+            text-align: center;
+            margin: 10px;
+        }
+
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .info-container {
+            flex: 1;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin: 10px;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .info-container h2 {
+            margin-top: 0;
+            font-size: 1.5em;
+        }
+
+        .info-container .info-item {
+            margin: 10px 0;
+        }
+
+        .info-container .info-item strong {
+            font-size: 1.2em;
+        }
+
+        .detected-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .detected-list li {
+            margin: 5px 0;
+            font-size: 1.1em;
+            line-height: 1.5em;
+        }
+
+        .detected-list li:before {
+            content: "• ";
+            color: #333;
+            font-weight: bold;
+        }
+
+        .back-button {
+            display: block;
+            margin: 30px auto;
+            padding: 12px 40px;
+            background-color: #333;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .back-button:hover {
+            background-color: #444;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .image-container,
+            .info-container {
+                width: 100%;
+                max-width: 600px;
+            }
+
+            .back-button {
+                width: 90%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <div class="header">
+        <h1>VisionMaster</h1>
+        <p class="version">Version: Trained on 20,000 photos</p>
+    </div>
+
+    <!-- Main Content Section -->
+    <div class="main-content">
+        <!-- Image Container -->
+        <div class="image-container">
+            <img src="{{ url_for('uploaded_file', filename=filename) }}" alt="Processed Image">
+        </div>
+
+        <!-- Info Container -->
+        <div class="info-container">
+            <h2>Object Detection Results</h2>
+            <p class="info-item"><strong>Total Instances Detected:</strong> {{ total_elements }}</p>
+            <div class="info-item">
+                <strong>Detected Elements and Percentages:</strong>
+                <ul class="detected-list">
+                    {% for label, scores in detected_elements.items() %}
+                        {% for score in scores %}
+                            <li>{{ label }} {{ loop.index }} → {{ score }}</li>
+                        {% endfor %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <a href="/cleanup" class="back-button">Upload Another Image</a>
+
+    <script>
+        // Trigger cleanup when the page is exited
+        window.onbeforeunload = function() {
+            navigator.sendBeacon("/exit_cleanup", "");
+        };
+    </script>
+</body>
+</html>
